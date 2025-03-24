@@ -9,7 +9,7 @@ from UartConsole import UartConsole
 
 #TODO to be considered:
 # - check config keys and values
-# - NTP and hour-based triggering
+# - hour-based triggering - what if watering once a day is too much?
 # - server for online config and monitoring
 # - local access point fallback (some problems on android)
 
@@ -19,12 +19,12 @@ defaultConfig = {
     'wifi_password': WIFI_PASSWORD,
     'wifi_connection_timeout_ms': 15000,
     'water_pump_duty_percent': 60,
-    'water_pump_time_s': 20,
+    'water_pump_time_s': 30,
     'nutrients_pump_duty_percent': 100,
-    'nutrients_pump_time_s': 17,
+    'nutrients_pump_volume_ml': 25,
     'valve_closing_time_s': 7,
     'periodic_watering_online_hours': [8, ],
-    'periodic_watering_offline_cycle_s': 24*60*60
+    'periodic_watering_offline_cycle_s': 2*24*60*60
     }
 
 def configPrecheck(config: dict):
@@ -89,7 +89,7 @@ async def main():
 
     while True:
         await asyncio.sleep(1)
-        console.write(f"Time: {ntp.getCurrentTime()}    Uptime: {logic.uptime:05}    Last watering: {logic.lastWateringUptime:05}    Watering counter: {logic.wateringCount:03}")
+        console.write(f"[{ntp.getCurrentTime()}] Uptime: {logic.uptime:05}   Last watering: {logic.lastTriggerUptime:05}   Watering counter: {logic.wateringCount:03}")
 
 
 try:

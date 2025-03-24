@@ -6,7 +6,7 @@ VALVE_OPEN_PIN = 20
 
 WATER_PUMP_PIN = 19
 WATER_PUMP_FREQ_HZ = 10000
-WATER_PUMP_FLOW_ML_SEC = 160 # water flow with 100% duty cycle [ml/s]
+WATER_PUMP_FLOW_ML_SEC = 175 # water flow with 100% duty cycle [ml/s]
 
 NUTRIENTS_PUMP_PIN = 18
 NUTRIENTS_PUMP_FREQ_HZ = 10000
