@@ -4,6 +4,7 @@ from config import Config
 from configPrivate import WIFI_SSID, WIFI_PASSWORD
 from logic import Logic
 from wifi import Wifi
+import ntp
 from UartConsole import UartConsole
 
 #TODO to be considered:
@@ -20,7 +21,10 @@ defaultConfig = {
     'water_pump_duty_percent': 60,
     'water_pump_time_s': 20,
     'nutrients_pump_duty_percent': 100,
-    'nutrients_pump_tims_s': 17
+    'nutrients_pump_time_s': 17,
+    'valve_closing_time_s': 7,
+    'periodic_watering_online_hours': [8, ],
+    'periodic_watering_offline_cycle_s': 24*60*60
     }
 
 def configPrecheck(config: dict):
@@ -55,21 +59,19 @@ class GpioHandler:
             return True
         return False
 
-async def runNetworkTask(console, config: dict):
+async def runNetworkTask(config: dict, console):
     wifi = Wifi(console)
     ssid = config['wifi_ssid']
     rssi = await wifi.ReadRssi(ssid)
     console.write(f"RSSI for {ssid}: {rssi}")
     ip = await wifi.Connect(ssid, config['wifi_password'], config['wifi_connection_timeout_ms'])
+    ntp.sync()
 
     # problems with AP (not visible on android)
     # if ip == None:
     #     await wifi.AccessPointStart("ap_test", "abecadlo") #TODO
 
     # TODO add starting server once connection is made, no need for separate boot.py as it can run on access point, temporarily
-
-def getCurrentTime():
-    return '--:--:--' #TODO to be moved inside Network class
 
 async def main():
     console = UartConsole(CONSOLE_UART, CONSOLE_TX_PIN, CONSOLE_RX_PIN, print_output=True)
@@ -78,16 +80,16 @@ async def main():
     valve = Valve(console)
     waterPump = WaterPump()
     nutrientsPump = NutrientsPump()
-    logic = Logic(valve, waterPump, nutrientsPump, console)
+    logic = Logic(valve, waterPump, nutrientsPump, config.config, console)
     logic.addWateringTrigger(gpioHandler.checkButtonTrigger)
 
     asyncio.create_task(gpioHandler.runTask())
     asyncio.create_task(logic.runTask())
-    asyncio.create_task(runNetworkTask(console, config.config))
+    asyncio.create_task(runNetworkTask(config.config, console))
 
     while True:
         await asyncio.sleep(1)
-        console.write(f"Time: {getCurrentTime()}    Uptime: {logic.uptime:05}    Last watering: {logic.lastWateringUptime:05}    Watering counter: {logic.wateringCyclesCount:03}")
+        console.write(f"Time: {ntp.getCurrentTime()}    Uptime: {logic.uptime:05}    Last watering: {logic.lastWateringUptime:05}    Watering counter: {logic.wateringCount:03}")
 
 
 try:

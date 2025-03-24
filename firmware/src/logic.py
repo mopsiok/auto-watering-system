@@ -10,10 +10,10 @@ class Logic:
     WATERING_STATUS_ONGOING = 2
     WATERING_STATUS_CLOSING = 3
 
-    def __init__(self, valve, waterPump, nutrientsPump, console):
+    def __init__(self, valve, waterPump, nutrientsPump, config: dict, console):
         self.uptime = 0
         self.lastWateringUptime = 0
-        self.wateringCyclesCount = 0
+        self.wateringCount = 0
 
         self.wateringTriggers = [self.__periodicTrigger, ]
         self.wateringStatus = self.WATERING_STATUS_IDLE
@@ -22,6 +22,7 @@ class Logic:
         self.valve = valve
         self.waterPump = waterPump
         self.nutrientsPump = nutrientsPump
+        self.config = config
         self.console = console
 
     def addWateringTrigger(self, triggerCallback):
@@ -38,7 +39,7 @@ class Logic:
         if self.uptime >= (self.lastWateringUptime + self.WATERING_CYCLE_PERIOD_SEC):
             self.console.write("Periodic trigger.")
             return True
-        if self.triggerAtStartup:
+        if self.triggerAtStartup: #TODO remove when new flow is finished
             self.console.write("Startup trigger.")
             self.triggerAtStartup = False
             return True
@@ -51,7 +52,7 @@ class Logic:
     
         if self.wateringStatus == self.WATERING_STATUS_OPENING:
             self.lastWateringUptime = self.uptime
-            self.wateringCyclesCount += 1
+            self.wateringCount += 1
             self.console.write("Opening the valve.")
             await self.valve.open()
             self.wateringStatus = self.WATERING_STATUS_ONGOING

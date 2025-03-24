@@ -103,18 +103,10 @@ class NutrientsPump(PwmWrapper):
     def __init__(self):
         super().__init__(NUTRIENTS_PUMP_PIN, NUTRIENTS_PUMP_FREQ_HZ)
 
-class Led:
+class Led(machine.Pin):
     def __init__(self):
-        self.pin = machine.Pin(LED_PIN, machine.Pin.OUT, value=0)
-
-    def on(self):
-        self.pin.on()
-    
-    def off(self):
-        self.pin.off()
-
-    def toggle(self):
-        self.pin.toggle()
+        super().__init__(LED_PIN, machine.Pin.OUT)
+        self.off()
 
 class Button:
     def __init__(self, pin: int, activeLow: bool = True):
