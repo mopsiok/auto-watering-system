@@ -8,8 +8,11 @@ import ntp
 from UartConsole import UartConsole
 
 #TODO to be considered:
+# - awesome web server lib https://github.com/jczic/MicroWebSrv2
+# - alternative: https://github.com/miguelgrinberg/microdot/tree/main
 # - check config keys and values
 # - hour-based triggering - what if watering once a day is too much?
+#       specify hour and its repetition period in days (since Monday/Sunday)?
 # - server for online config and monitoring
 # - local access point fallback (some problems on android)
 
