@@ -21,13 +21,13 @@ defaultConfig = {
     'wifi_ssid': WIFI_SSID,
     'wifi_password': WIFI_PASSWORD,
     'wifi_connection_timeout_ms': 15000,
-    'water_pump_duty_percent': 60,
-    'water_pump_time_s': 30,
+    'water_pump_duty_percent': 50,
+    'water_pump_time_s': 40,
     'nutrients_pump_duty_percent': 100,
     'nutrients_pump_volume_ml': 25,
     'valve_closing_time_s': 7,
     'periodic_watering_online_hours': [8, ],
-    'periodic_watering_offline_cycle_s': 2*24*60*60
+    'periodic_watering_offline_cycle_s': 24*60*60
     }
 
 def configPrecheck(config: dict):
