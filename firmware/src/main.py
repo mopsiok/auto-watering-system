@@ -26,8 +26,8 @@ defaultConfig = {
     'nutrients_pump_duty_percent': 100,
     'nutrients_pump_volume_ml': 25,
     'valve_closing_time_s': 7,
-    'periodic_watering_online_hours': [8, ],
-    'periodic_watering_offline_cycle_s': 24*60*60
+    # 'periodic_watering_online_hours': [8, ], #TODO not supported for now
+    'periodic_watering_offline_cycle_s': 2*24*60*60
     }
 
 def configPrecheck(config: dict):

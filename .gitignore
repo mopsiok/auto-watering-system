@@ -2,3 +2,4 @@
 .vscode/extensions.json
 .venv
 firmware/src/configPrivate.py
+firmware/src/config.json
