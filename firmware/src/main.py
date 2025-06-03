@@ -6,6 +6,7 @@ from logic import Logic
 from wifi import Wifi
 import ntp
 from UartConsole import UartConsole
+from webserver import *
 
 #TODO to be considered:
 # - awesome web server lib https://github.com/jczic/MicroWebSrv2
@@ -27,7 +28,7 @@ defaultConfig = {
     'nutrients_pump_volume_ml': 25,
     'valve_closing_time_s': 7,
     # 'periodic_watering_online_hours': [8, ], #TODO not supported for now
-    'periodic_watering_offline_cycle_s': 2*24*60*60
+    'periodic_watering_offline_cycle_s': 4*24*60*60
     }
 
 def configPrecheck(config: dict):
@@ -89,6 +90,10 @@ async def main():
     asyncio.create_task(gpioHandler.runTask())
     asyncio.create_task(logic.runTask())
     asyncio.create_task(runNetworkTask(config.config, console))
+
+    webserver = Webserver()
+    # logic.addWateringTrigger(webserver.checkWebWateringTrigger)
+    asyncio.create_task(webserver.runTask())
 
     while True:
         await asyncio.sleep(1)
