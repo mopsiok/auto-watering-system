@@ -1,21 +1,22 @@
 import uasyncio as asyncio
 from bsp import *
 from config import Config
-from configPrivate import WIFI_SSID, WIFI_PASSWORD
+from configPrivate import *
 from logic import Logic
 from wifi import Wifi
-import ntp
 from UartConsole import UartConsole
-from webserver import *
+import mytime, webserver
+
+#TODO is it a problem when the user changes ssid/password while being on AP mode, then trying to reconnect?
+# solutions:
+# - reboot the board (easy)
+# - redesign the app to asyncio events (might be needed anyway, as it is getting more complicated)
+#       e.g. changing the triggering of watering to queue, to avoid stupid wrappers
 
 #TODO to be considered:
-# - awesome web server lib https://github.com/jczic/MicroWebSrv2
-# - alternative: https://github.com/miguelgrinberg/microdot/tree/main
 # - check config keys and values
 # - hour-based triggering - what if watering once a day is too much?
 #       specify hour and its repetition period in days (since Monday/Sunday)?
-# - server for online config and monitoring
-# - local access point fallback (some problems on android)
 
 configFilePath = 'config.json'
 defaultConfig = {
@@ -63,23 +64,39 @@ class GpioHandler:
             return True
         return False
 
-async def runNetworkTask(config: dict, console):
-    wifi = Wifi(console)
-    ssid = config['wifi_ssid']
-    rssi = await wifi.ReadRssi(ssid)
-    console.write(f"RSSI for {ssid}: {rssi}")
-    ip = await wifi.Connect(ssid, config['wifi_password'], config['wifi_connection_timeout_ms'])
-    ntp.sync()
+async def tryConnectWifiOrAp(wifi: Wifi, config: dict, console):
+    try:
+        ssid = config['wifi_ssid']
+        rssi = wifi.ReadRssi(ssid)
+        console.write(f"RSSI for {ssid}: {rssi}")
+        await wifi.Connect(ssid, config['wifi_password'], config['wifi_connection_timeout_ms'])
 
-    # problems with AP (not visible on android)
-    # if ip == None:
-    #     await wifi.AccessPointStart("ap_test", "abecadlo") #TODO
+        isConnected = wifi.IsConnected()
+        if isConnected:
+            await asyncio.sleep(3)
+            console.write(f"Syncing time with NTP")
+            mytime.syncNtp()
+        else:
+            console.write(f"Starting access point with SSID={AP_SSID}")
+            await wifi.ApStart(AP_SSID, AP_PASSWORD)
+        return isConnected
+    except Exception as e:
+        console.write(f"Error while network handling: {str(e)}")
+        return False
 
-    # TODO add starting server once connection is made, no need for separate boot.py as it can run on access point, temporarily
+async def runNetworkTask(wifi: Wifi, config: dict, console):
+    NETWORK_CONNECT_RERUN_PERIOD_SEC = 10*60
+    isConnected = False
+    while(True):
+        if not isConnected:
+            isConnected = tryConnectWifiOrAp(wifi, config, console)
+        await asyncio.sleep(NETWORK_CONNECT_RERUN_PERIOD_SEC)
+
+console = UartConsole(CONSOLE_UART, CONSOLE_TX_PIN, CONSOLE_RX_PIN, print_output=True)
+config = Config(configFilePath, defaultConfig, console, configPrecheck, configToString)
+wifi = Wifi(console)
 
 async def main():
-    console = UartConsole(CONSOLE_UART, CONSOLE_TX_PIN, CONSOLE_RX_PIN, print_output=True)
-    config = Config(configFilePath, defaultConfig, console, configPrecheck, configToString)
     gpioHandler = GpioHandler(console)
     valve = Valve(console)
     waterPump = WaterPump()
@@ -89,15 +106,17 @@ async def main():
 
     asyncio.create_task(gpioHandler.runTask())
     asyncio.create_task(logic.runTask())
-    asyncio.create_task(runNetworkTask(config.config, console))
+    asyncio.create_task(runNetworkTask(wifi, config.config, console))
 
-    webserver = Webserver()
-    # logic.addWateringTrigger(webserver.checkWebWateringTrigger)
-    asyncio.create_task(webserver.runTask())
+    webserver.start()
+    logic.addWateringTrigger(webserver.checkWebWateringTrigger)
+    console.write('Webserver started')
 
     while True:
         await asyncio.sleep(1)
-        console.write(f"[{ntp.getCurrentTime()}] Uptime: {logic.uptime:05}   Last watering: {logic.lastTriggerUptime:05}   Watering counter: {logic.wateringCount:03}")
+        wifiStr = wifi.GetIp()# if wifi.IsConnected() else "x"
+        apStr = wifi.ApGetIp()# if wifi.ApIsReady() else "x"
+        console.write(f"[{mytime.getCurrentDateTimeStr()}][{wifiStr}|{apStr}] Uptime: {logic.uptime:05}   Last watering: {logic.lastTriggerUptime:05}   Watering counter: {logic.wateringCount:03}")
 
 
 try:
