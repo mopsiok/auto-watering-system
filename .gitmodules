@@ -1,0 +1,3 @@
+[submodule "microdot"]
+    path = external/microdot
+    url = https://github.com/miguelgrinberg/microdot.git
