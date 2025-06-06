@@ -26,19 +26,8 @@ def getCurrentDateTime():
 def getCurrentDateTimeStr(printTime=True, printDate=False):
     dt = getCurrentDateTime()
     time_ = f"{dt[4]:02}:{dt[5]:02}:{dt[6]:02}"
-    date_ = f"{dt[2]:02}:{dt[1]:02}:{dt[0]:04}"
+    date_ = f"{dt[2]:02}.{dt[1]:02}.{dt[0]:04}"
     return f"{date_ if printDate else ""}{" " if printDate & printTime else ""}{time_ if printTime else ""}"
-
-def getCurrentDateTimeJson():
-    dt = getCurrentDateTime()
-    return json.dumps({
-        'year': dt[0],
-        'month': dt[1],
-        'day': dt[2],
-        'hour': dt[4],
-        'minute': dt[5],
-        'second': dt[6]
-        })
 
 def setCurrentDateTimeJson(data):
     required_fields = ['year', 'month', 'day', 'hour', 'minute', 'second']

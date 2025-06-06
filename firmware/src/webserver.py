@@ -17,7 +17,7 @@ async def index(request):
 async def handle_time(request):
     try:
         if request.method == 'GET':
-            return mytime.getCurrentDateTimeJson()
+            return {'time': mytime.getCurrentDateTimeStr(True, True)}
         elif request.method == 'POST':
             mytime.setCurrentDateTimeJson(request.json)
             return {'status': 'RTC set'}

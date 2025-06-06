@@ -64,35 +64,28 @@ class GpioHandler:
             return True
         return False
 
-# async def tryConnectWifiOrAp(config: dict, console):
-#     try:
-
-#         return isConnected
-#     except Exception as e:
-#         console.write(f"Error while network handling: {str(e)}")
-#         return False
+async def tryConnectWifiOrAp(wifi: Wifi, config: dict, console):
+    try:
+        if not wifi.IsConnected():
+            await wifi.Connect(config['wifi_ssid'], config['wifi_password'], config['wifi_connection_timeout_ms'])
+        
+        if not wifi.IsConnected():
+            console.write(f"Starting access point with SSID={AP_SSID}")
+            await wifi.ApStart(AP_SSID, AP_PASSWORD)
+            return False
+        return True
+    except Exception as e:
+        console.write(f"Error while network handling: {str(e)}")
+        return False
 
 async def runNetworkTask(wifi: Wifi, config: dict, console):
     NETWORK_CONNECT_RERUN_PERIOD_SEC = 10*60
-    isConnected = False
     while(True):
-        if not isConnected:
-            try:
-                ssid = config['wifi_ssid']
-                rssi = wifi.ReadRssi(ssid)
-                console.write(f"RSSI for {ssid}: {rssi}")
-                await wifi.Connect(ssid, config['wifi_password'], config['wifi_connection_timeout_ms'])
-
-                isConnected = wifi.IsConnected()
-                if isConnected:
-                    await asyncio.sleep(3)
-                    console.write(f"Syncing time with NTP")
-                    mytime.syncNtp()
-                else:
-                    console.write(f"Starting access point with SSID={AP_SSID}")
-                    await wifi.ApStart(AP_SSID, AP_PASSWORD)
-            except Exception as e:
-                console.write(f"Error while network handling: {str(e)}")
+        isConnected = await tryConnectWifiOrAp(wifi, config, console)
+        if isConnected:
+            await asyncio.sleep(3)
+            console.write(f"Syncing time with NTP")
+            mytime.syncNtp()
         await asyncio.sleep(NETWORK_CONNECT_RERUN_PERIOD_SEC)
 
 async def main():
