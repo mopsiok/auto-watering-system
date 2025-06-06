@@ -64,39 +64,41 @@ class GpioHandler:
             return True
         return False
 
-async def tryConnectWifiOrAp(wifi: Wifi, config: dict, console):
-    try:
-        ssid = config['wifi_ssid']
-        rssi = wifi.ReadRssi(ssid)
-        console.write(f"RSSI for {ssid}: {rssi}")
-        await wifi.Connect(ssid, config['wifi_password'], config['wifi_connection_timeout_ms'])
+# async def tryConnectWifiOrAp(config: dict, console):
+#     try:
 
-        isConnected = wifi.IsConnected()
-        if isConnected:
-            await asyncio.sleep(3)
-            console.write(f"Syncing time with NTP")
-            mytime.syncNtp()
-        else:
-            console.write(f"Starting access point with SSID={AP_SSID}")
-            await wifi.ApStart(AP_SSID, AP_PASSWORD)
-        return isConnected
-    except Exception as e:
-        console.write(f"Error while network handling: {str(e)}")
-        return False
+#         return isConnected
+#     except Exception as e:
+#         console.write(f"Error while network handling: {str(e)}")
+#         return False
 
 async def runNetworkTask(wifi: Wifi, config: dict, console):
     NETWORK_CONNECT_RERUN_PERIOD_SEC = 10*60
     isConnected = False
     while(True):
         if not isConnected:
-            isConnected = tryConnectWifiOrAp(wifi, config, console)
+            try:
+                ssid = config['wifi_ssid']
+                rssi = wifi.ReadRssi(ssid)
+                console.write(f"RSSI for {ssid}: {rssi}")
+                await wifi.Connect(ssid, config['wifi_password'], config['wifi_connection_timeout_ms'])
+
+                isConnected = wifi.IsConnected()
+                if isConnected:
+                    await asyncio.sleep(3)
+                    console.write(f"Syncing time with NTP")
+                    mytime.syncNtp()
+                else:
+                    console.write(f"Starting access point with SSID={AP_SSID}")
+                    await wifi.ApStart(AP_SSID, AP_PASSWORD)
+            except Exception as e:
+                console.write(f"Error while network handling: {str(e)}")
         await asyncio.sleep(NETWORK_CONNECT_RERUN_PERIOD_SEC)
 
-console = UartConsole(CONSOLE_UART, CONSOLE_TX_PIN, CONSOLE_RX_PIN, print_output=True)
-config = Config(configFilePath, defaultConfig, console, configPrecheck, configToString)
-wifi = Wifi(console)
-
 async def main():
+    console = UartConsole(CONSOLE_UART, CONSOLE_TX_PIN, CONSOLE_RX_PIN, print_output=True)
+    config = Config(configFilePath, defaultConfig, console, configPrecheck, configToString)
+    wifi = Wifi(console)
     gpioHandler = GpioHandler(console)
     valve = Valve(console)
     waterPump = WaterPump()
@@ -114,8 +116,8 @@ async def main():
 
     while True:
         await asyncio.sleep(1)
-        wifiStr = wifi.GetIp()# if wifi.IsConnected() else "x"
-        apStr = wifi.ApGetIp()# if wifi.ApIsReady() else "x"
+        wifiStr = wifi.GetIp() if wifi.IsConnected() else "x"
+        apStr = wifi.ApGetIp() if wifi.ApIsReady() else "x"
         console.write(f"[{mytime.getCurrentDateTimeStr()}][{wifiStr}|{apStr}] Uptime: {logic.uptime:05}   Last watering: {logic.lastTriggerUptime:05}   Watering counter: {logic.wateringCount:03}")
 
 
