@@ -3,6 +3,7 @@
 # - the goal is to optimise the waterings in terms of even spread of events in time domain (no long periods without water), at the same time 
 #   being as close as possible to weekly average setpoint
 # - setting time window to values larger than 1 could result in longer periods without watering, but sometimes it results in better weekly average
+#   (as a rule of thumb, set between 1-1.3 day)
 # - adding minimal setpoint set to >0.5 of average setpoint could spread the events more evenly in time domain
 
 import matplotlib.pyplot as plt
@@ -15,39 +16,18 @@ param_sets = [
     # proper params:
     # {"averageSetpoint": 4000, "minSetpoint": 3000, "timeWindowDays": 1, "rebootOffset": 0},
     # {"averageSetpoint": 5000, "minSetpoint": 3000, "timeWindowDays": 1.2, "rebootOffset": 0},
+    # {"averageSetpoint": 10000, "minSetpoint": 6000, "timeWindowDays": 1.3, "rebootOffset": 0},
 
-    {"averageSetpoint": 5000, "minSetpoint": 3000, "timeWindowDays": 1.2, "rebootOffset": 0},
-    {"averageSetpoint": 5000, "minSetpoint": 3000, "timeWindowDays": 1.2, "rebootOffset": 10*60},
-    {"averageSetpoint": 5000, "minSetpoint": 3000, "timeWindowDays": 1.2, "rebootOffset": 1.2*24*60},
-    {"averageSetpoint": 5000, "minSetpoint": 3000, "timeWindowDays": 1.2, "rebootOffset": 2*24*60},
-    {"averageSetpoint": 5000, "minSetpoint": 3000, "timeWindowDays": 1.2, "rebootOffset": 4.1*24*60},
+    {"averageSetpoint": 3000, "minSetpoint": 0, "timeWindowDays": 1, "rebootOffset": 0},
+    {"averageSetpoint": 3000, "minSetpoint": 1500, "timeWindowDays": 1, "rebootOffset": 0},
+    {"averageSetpoint": 3000, "minSetpoint": 2000, "timeWindowDays": 1, "rebootOffset": 0},
+    {"averageSetpoint": 3000, "minSetpoint": 2500, "timeWindowDays": 1, "rebootOffset": 0},
 
-    # {"averageSetpoint": 5000, "minSetpoint": 0, "timeWindowDays": 1, "rebootOffset": 0},
-    # {"averageSetpoint": 5000, "minSetpoint": 0, "timeWindowDays": 1.2, "rebootOffset": 0},
-    # {"averageSetpoint": 5000, "minSetpoint": 0, "timeWindowDays": 1.3, "rebootOffset": 0},
-    # {"averageSetpoint": 5000, "minSetpoint": 0, "timeWindowDays": 2.2, "rebootOffset": 0},
-    # {"averageSetpoint": 5000, "minSetpoint": 0, "timeWindowDays": 2.3, "rebootOffset": 0},
-    # {"averageSetpoint": 5000, "minSetpoint": 0, "timeWindowDays": 2.4, "rebootOffset": 0},
+    # {"averageSetpoint": 7000, "minSetpoint": 4000, "timeWindowDays": 1.2, "rebootOffset": 10*60},
+    # {"averageSetpoint": 7000, "minSetpoint": 4000, "timeWindowDays": 1.2, "rebootOffset": 1.2*24*60},
+    # {"averageSetpoint": 7000, "minSetpoint": 4000, "timeWindowDays": 1.2, "rebootOffset": 2*24*60},
+    # {"averageSetpoint": 7000, "minSetpoint": 4000, "timeWindowDays": 1.2, "rebootOffset": 4.1*24*60},
 
-    # {"averageSetpoint": 5000, "minSetpoint": 3000, "timeWindowDays": 1, "rebootOffset": 0},
-    # {"averageSetpoint": 5000, "minSetpoint": 3000, "timeWindowDays": 1.2, "rebootOffset": 0},
-    # {"averageSetpoint": 5000, "minSetpoint": 3000, "timeWindowDays": 1.3, "rebootOffset": 0},
-    # {"averageSetpoint": 5000, "minSetpoint": 3000, "timeWindowDays": 2.2, "rebootOffset": 0},
-    # {"averageSetpoint": 5000, "minSetpoint": 3000, "timeWindowDays": 2.3, "rebootOffset": 0},
-    # {"averageSetpoint": 5000, "minSetpoint": 3000, "timeWindowDays": 2.4, "rebootOffset": 0},
-
-    # {"averageSetpoint": 4000, "minSetpoint": 0, "timeWindowDays": 1, "rebootOffset": 0},
-    # {"averageSetpoint": 4000, "minSetpoint": 0, "timeWindowDays": 1.5, "rebootOffset": 0},
-    # {"averageSetpoint": 4000, "minSetpoint": 0, "timeWindowDays": 2, "rebootOffset": 0},
-    # {"averageSetpoint": 4000, "minSetpoint": 0, "timeWindowDays": 2.2, "rebootOffset": 0},
-    # {"averageSetpoint": 4000, "minSetpoint": 0, "timeWindowDays": 2.3, "rebootOffset": 0},
-    # {"averageSetpoint": 4000, "minSetpoint": 0, "timeWindowDays": 2.4, "rebootOffset": 0},
-    # {"averageSetpoint": 4000, "minSetpoint": 0, "timeWindowDays": 2.5, "rebootOffset": 0},
-    # {"averageSetpoint": 4000, "minSetpoint": 0, "timeWindowDays": 3.2, "rebootOffset": 0},
-
-    # {"averageSetpoint": 7000, "minSetpoint": 4000, "timeWindowDays": 1, "rebootOffset": 0},
-    # {"averageSetpoint": 2500, "minSetpoint": 2000, "timeWindowDays": 3, "rebootOffset": 10*60},
-    # {"averageSetpoint": 10000, "minSetpoint": 7000, "timeWindowDays": 3, "rebootOffset": 4.1*24*60},
 ]
 
 WATER_PER_EVENT_ML = 4000
