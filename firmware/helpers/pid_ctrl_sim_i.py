@@ -6,19 +6,29 @@ from datetime import datetime, timedelta
 LITERS_PER_WATERING = 4.0
 DEADTIME_SECONDS = 10 * 60
 WATERING_WINDOWS = [(9 * 3600, 9 * 3600 + 15 * 60), (19 * 3600, 21 * 3600)]
-TIME_WINDOW_DAYS = 1.3
+TIME_WINDOW_DAYS = 1.
 SECONDS_PER_STEP = 60
-SIM_DAYS = 21
-# Kp, Ki, Kd = 0.6, 0.001, 0
-# Kp, Ki, Kd = 0.6, 0.0005, 0
-# Kp, Ki, Kd = 0.5, 0.0003, 0
-Kp, Ki, Kd = 0.6, 0.003, 0
-# INTEGRAL_MAX = (LITERS_PER_WATERING - Kp*1.1) / Ki  # Anti-windup limit on integral error
-INTEGRAL_MAX = (LITERS_PER_WATERING) / Ki  # Anti-windup limit on integral error
-INTEGRAL_PULLBACK =  (0.3*LITERS_PER_WATERING) / Ki
+SIM_DAYS = 50
+
+SETPOINT = 12
+
+Kp, Ki, Kim, Kipb, Kd = 0.6, 0.003, 1.0, 0.3,  0 # good for large setpoints (>10l)
+Kp, Ki, Kim, Kipb, Kd = 0.5, 0.001, 1.2, 0.2, 0 #GOOD stability, but visible offset
+Kp, Ki, Kim, Kipb, Kd = 1, 0.001, 1, 0.02, 0 #pretty small offsets, good stability
+Kp, Ki, Kim, Kipb, Kd = 1, 0.001, 1, 0.1, 0 # smaller chance to trigger 3x waterings in single window (for bigger setpoints)
+# Kp, Ki, Kim, Kipb, Kd = 1, 0.0008, 1.2, 0.1, 0
+
+# Kp, Ki, Kim, Kipb, Kd = 1, 0.0001, 1.5, 0.01, 0
+# Kp, Ki, Kim, Kipb, Kd = 0.5, 0.005, 1.1, 0.1, 0 #OK
+# Kp, Ki, Kipb, Kd = 0.7, 0.005, 0.3, 0 #OK
+
+INTEGRAL_MAX = (LITERS_PER_WATERING * Kim ) / Ki  # Anti-windup limit on integral error
+
+SECONDS_IN_DAY = 86400
+STEADY_STATE_OFFSET_DAYS = 5
 
 def seconds_since_midnight(ts):
-    return ts % 86400
+    return ts % SECONDS_IN_DAY
 
 def is_within_window(ts):
     t_day = seconds_since_midnight(ts)
@@ -28,8 +38,8 @@ def is_within_window(ts):
     return False
 
 def trim_old_events(now, log):
-    cutoff = now - TIME_WINDOW_DAYS * 86400
-    return [t for t in log if t >= cutoff]
+    cutoff = now - TIME_WINDOW_DAYS * SECONDS_IN_DAY
+    return [t for t in log if t > cutoff] #TODO go back to >=? maybe better this way
 
 def calc_daily_avg(now, log):
     recent = trim_old_events(now, log)
@@ -51,14 +61,7 @@ def simulate(setpoint_liters_per_day):
     i_terms = []
     d_terms = []
     control_signals = []
-
-    #on real code, only include artificial events if no data is available from before reboot (flash)
     event_log = []
-    # events_needed = round(setpoint_liters_per_day * TIME_WINDOW_DAYS / LITERS_PER_WATERING)
-    # interval_seconds = TIME_WINDOW_DAYS * 86400 / events_needed
-    # for i in range(events_needed):
-    #     synthetic_event_time = t_seconds - int((events_needed - i) * interval_seconds)
-    #     event_log.append(synthetic_event_time)
 
     last_event_time = -999999
     integral_error = 0.0
@@ -100,27 +103,29 @@ def simulate(setpoint_liters_per_day):
                 eventsY.append(avg)
 
                 # Pullback integral to prevent immediate follow-up watering
-                integral_error -= INTEGRAL_PULLBACK
+                integral_error -= Kipb * INTEGRAL_MAX
 
         t_seconds += SECONDS_PER_STEP
 
     return times, avg_liters_per_day, eventsX, eventsY, len(event_log), p_terms, i_terms, d_terms, control_signals
 
 # Run simulation
-setpoint = 18
-times, avg_flow, eventsX, eventsY, total_events, p_terms, i_terms, d_terms, control_signals = simulate(setpoint)
+times, avg_flow, eventsX, eventsY, total_events, p_terms, i_terms, d_terms, control_signals = simulate(SETPOINT)
 
 # Plotting
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
 
-actual_average = total_events*LITERS_PER_WATERING/SIM_DAYS
+steady_state_timestamp = times[0] + timedelta(days=STEADY_STATE_OFFSET_DAYS)
+steady_state_events = sum([1 if t>steady_state_timestamp else 0 for t in eventsX])
+print(f"steady state: {steady_state_timestamp}\nevents count: {steady_state_events}")
+actual_average = steady_state_events*LITERS_PER_WATERING/(SIM_DAYS-STEADY_STATE_OFFSET_DAYS)
 
 # Subplot 1: Moving average
 ax1.set_title(f"Moving Average of Watering - Total Events: {total_events}")
 ax1.set_ylabel("Average Liters/Day", color='tab:blue')
 ax1.plot(times, avg_flow, label="Moving Average", color='tab:blue')
-ax1.axhline(setpoint, color='gray', linestyle='--', label=f"Target: {setpoint:0.1f} L/day")
-ax1.axhline(actual_average, color='violet', linestyle='--', label=f"Actual: {actual_average:0.1f} L/day")
+ax1.axhline(SETPOINT, color='gray', linestyle='--', label=f"Target: {SETPOINT:0.1f} L/day")
+ax1.axhline(actual_average, color='violet', linestyle='--', label=f"Actual (steady state): {actual_average:0.1f} L/day")
 ax1.plot(eventsX, eventsY, linestyle='', marker='o', color='tab:red', label="Watering Event", markersize=5)
 ax1.tick_params(axis='y', labelcolor='tab:blue')
 ax1.legend()
