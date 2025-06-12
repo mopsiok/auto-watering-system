@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 
 from firmware.src.WateringController import WateringController
@@ -53,7 +53,7 @@ default_params = {
 }
 
 params_list = []
-for liters in range(2,15):
+for liters in range(1,15):
     params = dict(default_params)
     params['setpoint'] = liters
     params_list.append(params)
@@ -67,7 +67,7 @@ for p in params_list:
                                     liters_per_event=LITERS_PER_WATERING,
                                     watering_windows=WATERING_WINDOWS)
     
-    start_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    start_time = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     end_time = start_time + timedelta(days=SIM_DAYS)
     times, avg_flow, eventsX, eventsY, p_terms, i_terms, d_terms, control_signals = simulate(controller, start_time, end_time, seconds_per_step=SECONDS_PER_STEP)
 
