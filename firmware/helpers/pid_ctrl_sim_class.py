@@ -2,19 +2,8 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime, timedelta
 
-# Config
-# Kp, Ki, Kim, Kipb, Kd = 0.6, 0.003, 1.0, 0.3,  0 # good for large setpoints (>10l)
-# Kp, Ki, Kim, Kipb, Kd = 0.5, 0.001, 1.2, 0.2, 0 #GOOD stability, but visible offset
-# Kp, Ki, Kim, Kipb, Kd = 1, 0.001, 1, 0.02, 0 #pretty small offsets, good stability
-Kp, Ki, Kimax, Kidec, Kd = 1, 0.001, 1, 0.1, 0 # smaller chance to trigger 3x waterings in single window (for bigger setpoints)
-time_window_days = 1.0
-deadtime_seconds = 10 * 60
-setpoint_liters = 12.0
-
-# Constants
-LITERS_PER_WATERING = 4.0
-
 # Simulation constants
+LITERS_PER_WATERING = 4.0
 SIM_DAYS = 50
 SECONDS_PER_STEP = 60
 STEADY_STATE_OFFSET_DAYS = 5
@@ -44,7 +33,7 @@ class WateringController:
         # pid state
         self.integral_error = 0.0
         self.last_error = 0.0
-        self.last_event_time = -999999 #TODO stupid value
+        self.last_event_time = 0
 
         # event logs to estimate average watering
         self.event_log = []
@@ -100,8 +89,8 @@ class WateringController:
                 return True
         return False
 
-def simulate(setpoint_liters):
-    controller = WateringController(setpoint_liters, LITERS_PER_WATERING, deadtime_seconds, time_window_days, Kp, Ki, Kd, Kimax, Kidec)
+def simulate(**params):
+    controller = WateringController(**params)
 
     times, avg_flow = [], []
     p_terms, i_terms, d_terms, control_signals = [], [], [], []
@@ -128,38 +117,66 @@ def simulate(setpoint_liters):
 
     return times, avg_flow, eventsX, eventsY, p_terms, i_terms, d_terms, control_signals
 
-# --- Run Simulation ---
-times, avg_flow, eventsX, eventsY, p_terms, i_terms, d_terms, control_signals = simulate(setpoint_liters)
 
-# --- Plotting ---
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
+# Config
+# Kp, Ki, Kim, Kipb, Kd = 0.6, 0.003, 1.0, 0.3,  0 # good for large setpoints (>10l)
+# Kp, Ki, Kim, Kipb, Kd = 0.5, 0.001, 1.2, 0.2, 0 #GOOD stability, but visible offset
+# Kp, Ki, Kim, Kipb, Kd = 1, 0.001, 1, 0.02, 0 #pretty small offsets, good stability
+Kp, Ki, Kimax, Kidec, Kd = 1, 0.001, 1, 0.1, 0 # smaller chance to trigger 3x waterings in single window (for bigger setpoints)
 
-steady_state_timestamp = times[0] + timedelta(days=STEADY_STATE_OFFSET_DAYS)
-steady_state_events = sum([1 for t in eventsX if t > steady_state_timestamp])
-actual_average = steady_state_events * LITERS_PER_WATERING / (SIM_DAYS - STEADY_STATE_OFFSET_DAYS)
+default_params = {
+    'setpoint': 14,
+    'liters_per_event': LITERS_PER_WATERING,
+    'deadtime_sec': 10*60,
+    'time_window_days': 1,
+    'kp': Kp,
+    'ki': Ki,
+    'kd': Kd,
+    'kimax': Kimax,
+    'kidec': Kidec
+}
 
-ax1.set_title(f"events in steady state: {steady_state_events}")
-ax1.set_ylabel("Average Liters/Day", color='tab:blue')
-ax1.plot(times, avg_flow, label="Moving Average", color='tab:blue')
-ax1.axhline(setpoint_liters, color='gray', linestyle='--', label=f"Target: {setpoint_liters:.1f} L/day")
-ax1.axhline(actual_average, color='violet', linestyle='--', label=f"Actual (steady): {actual_average:.1f} L/day")
-ax1.plot(eventsX, eventsY, linestyle='', marker='o', color='tab:red', label="Watering Event", markersize=5)
-ax1.tick_params(axis='y', labelcolor='tab:blue')
-ax1.legend()
-ax1.grid(True, linestyle='--', alpha=0.5)
+params_list = []
+for liters in range(14,15):
+    params = dict(default_params)
+    params['setpoint'] = liters
+    params_list.append(params)
 
-ax2.set_title("PID Controller Components")
-ax2.set_xlabel("Time")
-ax2.set_ylabel("Control Output")
-ax2.plot(times, p_terms, label="P Term", color='tab:green')
-ax2.plot(times, i_terms, label="I Term", color='tab:orange')
-ax2.plot(times, d_terms, label="D Term", color='tab:purple')
-ax2.plot(times, control_signals, label="Total Control", color='black', linestyle='--')
-ax2.legend()
-ax2.grid(True, linestyle='--', alpha=0.5)
+for p in params_list:
+    filename = f"outputs/sim_p={p['kp']}_i={p['ki']}_d={p['kd']}_im={p['kimax']}_id={p['kidec']}_setp={p['setpoint']}_dead={p['deadtime_sec']}.png"
+    print(f"Simulating: {filename}")
 
-ax2.xaxis.set_major_locator(mdates.HourLocator(interval=12))
-ax2.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
-plt.setp(ax2.get_xticklabels(), rotation=45)
-plt.tight_layout()
-plt.show()
+    times, avg_flow, eventsX, eventsY, p_terms, i_terms, d_terms, control_signals = simulate(**p)
+
+    # --- Plotting ---
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
+
+    steady_state_timestamp = times[0] + timedelta(days=STEADY_STATE_OFFSET_DAYS)
+    steady_state_events = sum([1 for t in eventsX if t > steady_state_timestamp])
+    actual_average = steady_state_events * p['liters_per_event'] / (SIM_DAYS - STEADY_STATE_OFFSET_DAYS)
+
+    ax1.set_title(f"events in steady state: {steady_state_events}")
+    ax1.set_ylabel("Average Liters/Day", color='tab:blue')
+    ax1.plot(times, avg_flow, label="Moving Average", color='tab:blue')
+    ax1.axhline(p['setpoint'], color='gray', linestyle='--', label=f"Target: {p['setpoint']:.1f} L/day")
+    ax1.axhline(actual_average, color='violet', linestyle='--', label=f"Actual (steady): {actual_average:.1f} L/day")
+    ax1.plot(eventsX, eventsY, linestyle='', marker='o', color='tab:red', label="Watering Event", markersize=5)
+    ax1.tick_params(axis='y', labelcolor='tab:blue')
+    ax1.legend()
+    ax1.grid(True, linestyle='--', alpha=0.5)
+
+    ax2.set_title("PID Controller Components")
+    ax2.set_xlabel("Time")
+    ax2.set_ylabel("Control Output")
+    ax2.plot(times, p_terms, label="P Term", color='tab:green')
+    ax2.plot(times, i_terms, label="I Term", color='tab:orange')
+    ax2.plot(times, d_terms, label="D Term", color='tab:purple')
+    ax2.plot(times, control_signals, label="Total Control", color='black', linestyle='--')
+    ax2.legend()
+    ax2.grid(True, linestyle='--', alpha=0.5)
+
+    ax2.xaxis.set_major_locator(mdates.HourLocator(interval=12))
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+    plt.setp(ax2.get_xticklabels(), rotation=90)
+    plt.tight_layout()
+    plt.savefig(filename, dpi=150, bbox_inches='tight')
