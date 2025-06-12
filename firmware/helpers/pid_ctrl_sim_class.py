@@ -2,18 +2,11 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime, timedelta
 
-# Simulation constants
-LITERS_PER_WATERING = 4.0
-SIM_DAYS = 50
-SECONDS_PER_STEP = 60
-STEADY_STATE_OFFSET_DAYS = 5
-
 class WateringController:
     # Constants
     SECONDS_IN_DAY = 86400
-    WATERING_WINDOWS = [(9 * 3600, 9 * 3600 + 15 * 60), (19 * 3600, 21 * 3600)]
 
-    def __init__(self, setpoint, liters_per_event, deadtime_sec, time_window_days, kp, ki, kd, kimax, kidec,
+    def __init__(self, setpoint, liters_per_event, deadtime_sec, watering_windows, time_window_days, kp, ki, kd, kimax, kidec,
                  load_event_log_callback = None, store_event_log_callback = None):
         """
         kimax[>0]: maximum absolute value for integral part, as a portion of single liters_per_event. Can also be larger than 1.
@@ -23,6 +16,7 @@ class WateringController:
         self.setpoint = setpoint
         self.liters_per_event = liters_per_event
         self.deadtime_sec = deadtime_sec
+        self.watering_windows = watering_windows
         self.time_window_days = time_window_days
         self.kp = kp
         self.ki = ki
@@ -84,20 +78,15 @@ class WateringController:
 
     def __is_within_window(self, current_time_seconds):
         seconds_since_midnight = current_time_seconds % WateringController.SECONDS_IN_DAY
-        for wstart, wstop in WateringController.WATERING_WINDOWS:
+        for wstart, wstop in self.watering_windows:
             if wstart <= seconds_since_midnight <= wstop:
                 return True
         return False
 
-def simulate(**params):
-    controller = WateringController(**params)
-
+def simulate(controller: WateringController, start_time, end_time, seconds_per_step):
     times, avg_flow = [], []
     p_terms, i_terms, d_terms, control_signals = [], [], [], []
     eventsX, eventsY = [], []
-
-    start_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    end_time = start_time + timedelta(days=SIM_DAYS)
     t = start_time
     while t <= end_time:
         should_water, (current_average, control, (p,i,d)) = controller.run_single_iteration(int(t.timestamp()))
@@ -113,10 +102,16 @@ def simulate(**params):
             eventsX.append(t)
             eventsY.append(current_average)
 
-        t += timedelta(seconds=SECONDS_PER_STEP)
+        t += timedelta(seconds=seconds_per_step)
 
     return times, avg_flow, eventsX, eventsY, p_terms, i_terms, d_terms, control_signals
 
+# Simulation constants
+LITERS_PER_WATERING = 4.0
+WATERING_WINDOWS = [(9 * 3600, 9 * 3600 + 15 * 60), (19 * 3600, 21 * 3600)]
+SIM_DAYS = 50
+SECONDS_PER_STEP = 60
+STEADY_STATE_OFFSET_DAYS = 5
 
 # Config
 # Kp, Ki, Kim, Kipb, Kd = 0.6, 0.003, 1.0, 0.3,  0 # good for large setpoints (>10l)
@@ -126,7 +121,6 @@ Kp, Ki, Kimax, Kidec, Kd = 1, 0.001, 1, 0.1, 0 # smaller chance to trigger 3x wa
 
 default_params = {
     'setpoint': 14,
-    'liters_per_event': LITERS_PER_WATERING,
     'deadtime_sec': 10*60,
     'time_window_days': 1,
     'kp': Kp,
@@ -137,7 +131,7 @@ default_params = {
 }
 
 params_list = []
-for liters in range(14,15):
+for liters in range(2,15):
     params = dict(default_params)
     params['setpoint'] = liters
     params_list.append(params)
@@ -146,14 +140,20 @@ for p in params_list:
     filename = f"outputs/sim_p={p['kp']}_i={p['ki']}_d={p['kd']}_im={p['kimax']}_id={p['kidec']}_setp={p['setpoint']}_dead={p['deadtime_sec']}.png"
     print(f"Simulating: {filename}")
 
-    times, avg_flow, eventsX, eventsY, p_terms, i_terms, d_terms, control_signals = simulate(**p)
+    controller = WateringController(**p,
+                                    liters_per_event=LITERS_PER_WATERING,
+                                    watering_windows=WATERING_WINDOWS)
+    
+    start_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    end_time = start_time + timedelta(days=SIM_DAYS)
+    times, avg_flow, eventsX, eventsY, p_terms, i_terms, d_terms, control_signals = simulate(controller, start_time, end_time, seconds_per_step=SECONDS_PER_STEP)
 
     # --- Plotting ---
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
 
     steady_state_timestamp = times[0] + timedelta(days=STEADY_STATE_OFFSET_DAYS)
     steady_state_events = sum([1 for t in eventsX if t > steady_state_timestamp])
-    actual_average = steady_state_events * p['liters_per_event'] / (SIM_DAYS - STEADY_STATE_OFFSET_DAYS)
+    actual_average = steady_state_events * controller.liters_per_event / (SIM_DAYS - STEADY_STATE_OFFSET_DAYS)
 
     ax1.set_title(f"events in steady state: {steady_state_events}")
     ax1.set_ylabel("Average Liters/Day", color='tab:blue')
