@@ -7,7 +7,7 @@ class Wifi():
         self.wlan = network.WLAN(network.STA_IF)
         self.ap = network.WLAN(network.AP_IF)
 
-    async def Connect(self, ssid, password, timeout_ms=10000):
+    async def Connect(self, ssid, password, timeout_ms=15000):
         self.console.write(f'Connecting to WiFi ({ssid})...')
         if (not ssid) or (not password):
             return None

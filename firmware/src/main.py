@@ -1,7 +1,6 @@
 import uasyncio as asyncio
 from bsp import *
-from config import Config
-from configPrivate import *
+from config import *
 from logic import Logic
 from wifi import Wifi
 from UartConsole import UartConsole
@@ -12,36 +11,7 @@ import mytime, webserver
 # - reboot the board (easy)
 # - redesign the app to asyncio events (might be needed anyway, as it is getting more complicated)
 #       e.g. changing the triggering of watering to queue, to avoid stupid wrappers
-
-#TODO to be considered:
-# - check config keys and values
-# - hour-based triggering - what if watering once a day is too much?
-#       specify hour and its repetition period in days (since Monday/Sunday)?
-
-configFilePath = 'config.json'
-defaultConfig = {
-    'wifi_ssid': WIFI_SSID,
-    'wifi_password': WIFI_PASSWORD,
-    'wifi_connection_timeout_ms': 15000,
-    'water_pump_duty_percent': 50,
-    'water_pump_time_s': 40,
-    'nutrients_pump_duty_percent': 100,
-    'nutrients_pump_volume_ml': 25,
-    'valve_closing_time_s': 7,
-    # 'periodic_watering_online_hours': [8, ], #TODO not supported for now
-    'periodic_watering_offline_cycle_s': 4*24*60*60
-    }
-
-def configPrecheck(config: dict):
-    return True
-
-def configToString(config: dict):
-    string = ""
-    for key in config.keys():
-        if key in ["wifi_ssid", "wifi_password"]:
-            continue
-        string += f"\t{key: <27} = {config[key]}\n"
-    return string
+# - alternatively, only expose single function for external trigger
 
 class GpioHandler:
     def __init__(self, console):
@@ -64,44 +34,41 @@ class GpioHandler:
             return True
         return False
 
-async def tryConnectWifiOrAp(wifi: Wifi, config: dict, console):
-    try:
-        if not wifi.IsConnected():
-            await wifi.Connect(config['wifi_ssid'], config['wifi_password'], config['wifi_connection_timeout_ms'])
-        
-        if not wifi.IsConnected():
-            console.write(f"Starting access point with SSID={AP_SSID}")
-            await wifi.ApStart(AP_SSID, AP_PASSWORD)
-            return False
-        return True
-    except Exception as e:
-        console.write(f"Error while network handling: {str(e)}")
+async def connectWifiOrAp(wifi: Wifi, config: WifiConfig, console):
+    if not wifi.IsConnected():
+        await wifi.Connect(config.values['ssid'], config.values['password'])
+    
+    if not wifi.IsConnected():
+        ap_ssid = config.values['ap_ssid']
+        console.write(f"Starting access point with SSID={ap_ssid}")
+        await wifi.ApStart(ap_ssid, config.values['ap_password'])
         return False
+    return True
 
-async def runNetworkTask(wifi: Wifi, config: dict, console):
+async def runNetworkTask(wifi: Wifi, config: WifiConfig, console):
     NETWORK_CONNECT_RERUN_PERIOD_SEC = 10*60
     while(True):
-        isConnected = await tryConnectWifiOrAp(wifi, config, console)
-        if isConnected:
-            await asyncio.sleep(3)
-            console.write(f"Syncing time with NTP")
-            mytime.syncNtp()
+        try:
+            isConnected = await connectWifiOrAp(wifi, config, console)
+            if isConnected:
+                await asyncio.sleep(5)
+                console.write(f"Syncing time with NTP")
+                mytime.syncNtp()
+        except Exception as e:
+            console.write(f"Error while network handling: {str(e)}")
         await asyncio.sleep(NETWORK_CONNECT_RERUN_PERIOD_SEC)
 
 async def main():
     console = UartConsole(CONSOLE_UART, CONSOLE_TX_PIN, CONSOLE_RX_PIN, print_output=True)
-    config = Config(configFilePath, defaultConfig, console, configPrecheck, configToString)
+    wifiConfig = WifiConfig(console)
     wifi = Wifi(console)
     gpioHandler = GpioHandler(console)
-    valve = Valve(console)
-    waterPump = WaterPump()
-    nutrientsPump = NutrientsPump()
-    logic = Logic(valve, waterPump, nutrientsPump, config.config, console)
+    logic = Logic(console)
     logic.addWateringTrigger(gpioHandler.checkButtonTrigger)
 
     asyncio.create_task(gpioHandler.runTask())
     asyncio.create_task(logic.runTask())
-    asyncio.create_task(runNetworkTask(wifi, config.config, console))
+    asyncio.create_task(runNetworkTask(wifi, wifiConfig, console))
 
     webserver.start()
     logic.addWateringTrigger(webserver.checkWebWateringTrigger)

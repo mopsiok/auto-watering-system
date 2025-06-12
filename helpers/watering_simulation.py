@@ -1,3 +1,6 @@
+# Run from root directory as:
+# python -m helpers.watering_simulation
+
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime, timedelta, timezone

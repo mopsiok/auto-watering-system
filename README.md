@@ -2,10 +2,6 @@
 
 ## Firmware
 
-### Important note
-
-`firmware/src/configPrivate.py` is excluded from the repository due to security reasons. Provide your own version based on `configPrivateTemplate.py`
-
 ### Flashing MicroPython on RPI Pico W
 - Go to [MicroPython download site](https://micropython.org/download/RPI_PICO_W/), and download the latest uf2. Alternatively, use `firmware-setup/RPI_PICO_W-[...].uf2`.
 - While holding `BOOTSEL` button, connect RPI Pico W to the host. Copy the file to the USB mass storage device that appears. Reconnect the device.

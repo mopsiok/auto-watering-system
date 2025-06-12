@@ -23,6 +23,9 @@ def getCurrentDateTime():
     # (year, month, day, weekday, hour, minute, second, microsecond)
     return rtc.datetime()
 
+def getCurrentSeconds():
+    return int(time.time())
+
 def getCurrentDateTimeStr(printTime=True, printDate=False):
     dt = getCurrentDateTime()
     time_ = f"{dt[4]:02}:{dt[5]:02}:{dt[6]:02}"

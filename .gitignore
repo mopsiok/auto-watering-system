@@ -1,7 +1,6 @@
 .vscode/settings.json
 .vscode/extensions.json
 .venv
-firmware/src/configPrivate.py
-firmware/src/config.json
+firmware/src/data
 helpers/outputs
 __pycache__

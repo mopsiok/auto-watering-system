@@ -1,5 +1,8 @@
 import uasyncio as asyncio
 from bsp import *
+from config import *
+from WateringController import WateringController
+import mytime
 
 class Logic:
     STATUS_IDLE = 0
@@ -7,19 +10,32 @@ class Logic:
     STATUS_PUMPS_RUNNING = 2
     STATUS_VALVE_OPENING = 3
 
-    def __init__(self, valve: Valve, waterPump: WaterPump, nutrientsPump: NutrientsPump, config: dict, console):
+    def __init__(self, console):
         self.uptime = 0
         self.wateringCount = 0
 
-        self.wateringTriggers = [self.__periodicTrigger, ]
+        self.wateringTriggers = [self.__autoTrigger, ]
         self.lastTriggerUptime = 0
-        self.triggerAtStartup = True
         self.status = self.STATUS_IDLE
         
-        self.valve = valve
-        self.waterPump = waterPump
-        self.nutrientsPump = nutrientsPump
-        self.config = config
+        self.valve = Valve(console)
+        self.waterPump = WaterPump()
+        self.nutrientsPump = NutrientsPump()
+        self.controlConfig = ControlConfig(console)
+        self.hwConfig = HwConfig(console)
+
+        liters_per_event = 4.0 #TODO calculate based on hw config and bsp
+        self.controllerPrescalerCounter = 0 #TODO to be removed when triggering logic changes
+        self.controller = WateringController(self.controlConfig.values["setpoint"],
+                                             liters_per_event,
+                                             self.controlConfig.values["deadtime_sec"],
+                                             self.controlConfig.values["watering_windows"],
+                                             self.controlConfig.values["time_window_days"],
+                                             self.controlConfig.values["kp"],
+                                             self.controlConfig.values["ki"],
+                                             self.controlConfig.values["kd"],
+                                             self.controlConfig.values["kimax"],
+                                             self.controlConfig.values["kidec"])
         self.console = console
 
     def addWateringTrigger(self, triggerCallback):
@@ -32,14 +48,18 @@ class Logic:
             self.uptime += 1
             await self.__handleWatering()
 
-    def __periodicTrigger(self):
-        if self.uptime >= (self.lastTriggerUptime + self.config['periodic_watering_offline_cycle_s']):
-            self.console.write("Periodic trigger.")
-            return True
-        if self.triggerAtStartup: #TODO remove when new flow is finished
-            self.console.write("Startup trigger.")
-            self.triggerAtStartup = False
-            return True
+    def __autoTrigger(self):
+        # Triggers single water cycle based on given average water volume poured daily
+        # Only triggers within specific time window, and only when time is synchronized with external source
+        # Also accounts for dead-time for better water absorption
+
+        self.controllerPrescalerCounter += 1
+        if self.controllerPrescalerCounter >= 60: # Executed once a minute
+            self.controllerPrescalerCounter = 0
+            if self.__isTimeSynced():
+                t = mytime.getCurrentSeconds()
+                should_water, _ = self.controller.run_single_iteration(t)
+                return should_water
         return False
 
     async def __handleWatering(self):
@@ -50,9 +70,9 @@ class Logic:
             self.status = self.STATUS_VALVE_CLOSING
     
         if self.status == self.STATUS_VALVE_CLOSING:
-            if self.uptime >= self.statusTimestamp + self.config['valve_closing_time_s']:
-                waterPercent = self.config['water_pump_duty_percent']
-                nutrientsPercent = self.config['nutrients_pump_duty_percent']
+            if self.uptime >= self.statusTimestamp + self.hwConfig.values['valve_closing_time_s']:
+                waterPercent = self.hwConfig.values['water_pump_duty_percent']
+                nutrientsPercent = self.hwConfig.values['nutrients_pump_duty_percent']
                 self.console.write(f"Starting water ({waterPercent}%) and nutrient ({nutrientsPercent}%) pumps")
                 self.waterPump.setPercentValue(waterPercent)
                 self.nutrientsPump.setPercentValue(nutrientsPercent)
@@ -60,8 +80,8 @@ class Logic:
                 self.status = self.STATUS_PUMPS_RUNNING
 
         if self.status == self.STATUS_PUMPS_RUNNING:
-            waterPumpFinished = self.uptime >= self.statusTimestamp + self.config['water_pump_time_s']
-            nutrientsTimeDelta = round(self.config['nutrients_pump_volume_ml'] * self.config['nutrients_pump_duty_percent'] / NUTRIENTS_PUMP_FLOW_ML_SEC / 100)
+            waterPumpFinished = self.uptime >= self.statusTimestamp + self.hwConfig.values['water_pump_time_s']
+            nutrientsTimeDelta = round(self.hwConfig.values['nutrients_pump_volume_ml'] * self.hwConfig.values['nutrients_pump_duty_percent'] / NUTRIENTS_PUMP_FLOW_ML_SEC / 100)
             nutrientsPumpFinished = self.uptime >= self.statusTimestamp + nutrientsTimeDelta
             if waterPumpFinished:
                 self.waterPump.setPercentValue(0)
@@ -86,3 +106,9 @@ class Logic:
             self.lastTriggerUptime = self.uptime
             self.wateringCount += 1
         return result
+    
+    def __isTimeSynced(self):
+        # just after startup, the default datetime for this HW is around 01.01.2021
+        # this hack quickly determines whether the time is synchronized
+        currentYear = mytime.getCurrentDateTime()[0]
+        return currentYear >= 2025
