@@ -8,7 +8,7 @@ WEB_PORT = 80
 server = Microdot()
 Response.default_content_type = 'application/json'
 
-triggerWatering = False
+wateringTriggerCallback = None
 
 @server.route('/')
 async def index(request):
@@ -37,17 +37,13 @@ async def handle_ntp_sync(request):
 async def handle_trigger(request):
     global triggerWatering
     try:
-        triggerWatering = True
+        if wateringTriggerCallback:
+            wateringTriggerCallback()
         return {'status': 'Triggered'}
     except Exception as e:
         return {'error': str(e)}, 400
     
-def start():
+def start(triggerCallback):
+    global wateringTriggerCallback
+    wateringTriggerCallback = triggerCallback
     asyncio.create_task(server.start_server(port=WEB_PORT))
-
-def checkWebWateringTrigger():
-    global triggerWatering
-    if triggerWatering:
-        triggerWatering = False
-        return True
-    return False

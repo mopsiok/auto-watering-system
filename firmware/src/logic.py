@@ -14,7 +14,7 @@ class Logic:
         self.uptime = 0
         self.wateringCount = 0
 
-        self.wateringTriggers = [self.__autoTrigger, ]
+        self.manualTriggerFlag = False
         self.lastTriggerUptime = 0
         self.status = self.STATUS_IDLE
         
@@ -37,9 +37,10 @@ class Logic:
                                              self.controlConfig.values["kimax"],
                                              self.controlConfig.values["kidec"])
         self.console = console
+        asyncio.create_task(self.runTask())
 
-    def addWateringTrigger(self, triggerCallback):
-        self.wateringTriggers.append(triggerCallback)
+    def manualTrigger(self):
+        self.manualTriggerFlag = True
 
     async def runTask(self):
         await self.valve.open()
@@ -48,18 +49,15 @@ class Logic:
             self.uptime += 1
             await self.__handleWatering()
 
-    def __autoTrigger(self):
+    def __controllerTrigger(self):
         # Triggers single water cycle based on given average water volume poured daily
         # Only triggers within specific time window, and only when time is synchronized with external source
         # Also accounts for dead-time for better water absorption
 
-        self.controllerPrescalerCounter += 1
-        if self.controllerPrescalerCounter >= 60: # Executed once a minute
-            self.controllerPrescalerCounter = 0
-            if self.__isTimeSynced():
-                t = mytime.getCurrentSeconds()
-                should_water, _ = self.controller.run_single_iteration(t)
-                return should_water
+        if self.__shouldRunSingleIteration():
+            t = mytime.getCurrentSeconds()
+            should_water, _ = self.controller.run_single_iteration(t)
+            return should_water
         return False
 
     async def __handleWatering(self):
@@ -97,18 +95,18 @@ class Logic:
             self.status = self.STATUS_IDLE
 
     def __checkTriggers(self):
-        result = False
-        for trigger in self.wateringTriggers:
-            if trigger():
-                # don't exit early, update all triggers on the list
-                result = True
-        if result:
+        if (self.__controllerTrigger() or self.manualTriggerFlag):
+            self.manualTriggerFlag = False
             self.lastTriggerUptime = self.uptime
             self.wateringCount += 1
-        return result
+            return True
+        return False
     
-    def __isTimeSynced(self):
+    def __shouldRunSingleIteration(self):
+        # check whether time is synchronised and allow to execute every full minute
         # just after startup, the default datetime for this HW is around 01.01.2021
         # this hack quickly determines whether the time is synchronized
-        currentYear = mytime.getCurrentDateTime()[0]
-        return currentYear >= 2025
+        dateTime = mytime.getCurrentDateTime()
+        currentYear = dateTime[0]
+        currentSecond = dateTime[6]
+        return (currentYear >= 2025) and (currentSecond == 0)

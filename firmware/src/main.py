@@ -9,30 +9,25 @@ import mytime, webserver
 #TODO is it a problem when the user changes ssid/password while being on AP mode, then trying to reconnect?
 # solutions:
 # - reboot the board (easy)
-# - redesign the app to asyncio events (might be needed anyway, as it is getting more complicated)
-#       e.g. changing the triggering of watering to queue, to avoid stupid wrappers
-# - alternatively, only expose single function for external trigger
+
+#TODO refactor network logic to be on single class, starting new task inside
+
 
 class GpioHandler:
-    def __init__(self, console):
+    def __init__(self, manualTriggerCallback, console):
+        self.manualTriggerCallback = manualTriggerCallback
         self.console = console
         self.led = Led()
         self.button = Button(TRIGGER_BUTTON_PIN, activeLow=True)
-        self.buttonPressed = False
+        asyncio.create_task(self.runTask())
 
     async def runTask(self):
         while True:
             self.led.toggle()
             if self.button.isPressed():
                 self.console.write("Button trigger.")
-                self.buttonPressed = True
+                self.manualTriggerCallback()
             await asyncio.sleep_ms(100)
-    
-    def checkButtonTrigger(self):
-        if self.buttonPressed:
-            self.buttonPressed = False
-            return True
-        return False
 
 async def connectWifiOrAp(wifi: Wifi, config: WifiConfig, console):
     if not wifi.IsConnected():
@@ -62,16 +57,12 @@ async def main():
     console = UartConsole(CONSOLE_UART, CONSOLE_TX_PIN, CONSOLE_RX_PIN, print_output=True)
     wifiConfig = WifiConfig(console)
     wifi = Wifi(console)
-    gpioHandler = GpioHandler(console)
     logic = Logic(console)
-    logic.addWateringTrigger(gpioHandler.checkButtonTrigger)
+    gpioHandler = GpioHandler(logic.manualTrigger, console)
 
-    asyncio.create_task(gpioHandler.runTask())
-    asyncio.create_task(logic.runTask())
     asyncio.create_task(runNetworkTask(wifi, wifiConfig, console))
 
-    webserver.start()
-    logic.addWateringTrigger(webserver.checkWebWateringTrigger)
+    webserver.start(logic.manualTrigger)
     console.write('Webserver started')
 
     while True:
