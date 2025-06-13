@@ -45,7 +45,7 @@ async def runNetworkTask(wifi: Wifi, config: WifiConfig, console):
     while(True):
         try:
             isConnected = await connectWifiOrAp(wifi, config, console)
-            if isConnected:
+            if isConnected and not mytime.isTimeSynced():
                 await asyncio.sleep(5)
                 console.write(f"Syncing time with NTP")
                 mytime.syncNtp()
@@ -62,7 +62,7 @@ async def main():
 
     asyncio.create_task(runNetworkTask(wifi, wifiConfig, console))
 
-    webserver.start(logic.manualTrigger)
+    webserver.start(logic.manualTrigger, logic.controlConfig, logic.hwConfig, wifiConfig, console)
     console.write('Webserver started')
 
     while True:

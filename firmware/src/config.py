@@ -10,7 +10,7 @@ class JsonConfig:
         self.console = console
         self.values = {} #should not be set directly, use load() or update() instead
         if not self.load(self.filePath):
-            self.update(jsonValues=None, rawValues=self.defaultConfig)
+            self.update(self.defaultConfig)
 
     def specificPrecheck(self, values: dict):
         return True
@@ -30,6 +30,7 @@ class JsonConfig:
                     return False
             return self.specificPrecheck(values)
         except Exception as error:
+            self.console.write(f'Exception while precheck: {error}')
             return False
 
     def load(self, filePath):
@@ -45,14 +46,7 @@ class JsonConfig:
             self.console.write(f"Invalid or non-existing file ({filePath})")
         return False
 
-    def update(self, jsonValues: str | None, rawValues: dict = {}):
-        try:
-            if jsonValues != None:
-                rawValues = json.loads(jsonValues)
-        except Exception as error:
-            self.console.write(f"Invalid json string")
-            return False
-        
+    def update(self, rawValues: dict):
         if not self.precheck(rawValues):
             self.console.write(f"Prechecks failed while updating ({self.filePath})")
             return False

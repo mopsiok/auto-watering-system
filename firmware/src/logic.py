@@ -103,10 +103,6 @@ class Logic:
         return False
     
     def __shouldRunSingleIteration(self):
-        # check whether time is synchronised and allow to execute every full minute
-        # just after startup, the default datetime for this HW is around 01.01.2021
-        # this hack quickly determines whether the time is synchronized
-        dateTime = mytime.getCurrentDateTime()
-        currentYear = dateTime[0]
-        currentSecond = dateTime[6]
-        return (currentYear >= 2025) and (currentSecond == 0)
+        # check whether time is synchronised and allow to execute every full minute        
+        currentSecond = mytime.getCurrentDateTime()[6]
+        return mytime.isTimeSynced() and (currentSecond == 0)

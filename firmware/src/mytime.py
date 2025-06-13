@@ -19,6 +19,12 @@ def syncNtp():
                   0               # microsecond
                 ))
 
+def isTimeSynced():
+    # just after startup, the default datetime for this HW is around 01.01.2021
+    # this hack quickly determines whether the time is synchronized
+    currentYear = getCurrentDateTime()[0]
+    return (currentYear >= 2025)
+
 def getCurrentDateTime():
     # (year, month, day, weekday, hour, minute, second, microsecond)
     return rtc.datetime()
